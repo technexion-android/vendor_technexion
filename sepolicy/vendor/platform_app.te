@@ -1,0 +1,8 @@
+# Added by TechNexion
+
+# neverallow domain device (chr_file (read write open))
+# but app libgpiod need read/write permission
+# so set permissive to platform_app
+permissive platform_app;
+allow platform_app device:dir rw_dir_perms;
+#allow platform_app device:chr_file rw_file_perms;

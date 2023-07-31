@@ -1,0 +1,12 @@
+# Added by TechNexion
+
+permissive hal_bluetooth_default;
+
+#allow hal_bluetooth_default { wifi_prop wifi_hal_prop default_prop }:file rw_file_perms;
+#allow hal_bluetooth_default { wifi_prop wifi_hal_prop default_prop }:file { read write getattr append map open watch watch_reads };
+#allow hal_bluetooth_default bluetooth_data_file:file ~{ lock open watch watch_reads execute execute_no_trans execmod entrypoint };
+allow hal_bluetooth_default hal_bluetooth_default:file rw_file_perms;
+allow hal_bluetooth_default hal_bluetooth_default:unix_stream_socket { ioctl };
+
+# connect to the UART
+allow hal_bluetooth_default wcnss_filter:unix_stream_socket { ioctl connectto };

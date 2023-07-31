@@ -1,0 +1,4 @@
+# Added by TechNexion
+
+#allow hal_camera_default { hal_thermal_hwservice }:hwservice_manager { find };
+allow hal_camera_default { hal_thermal_hwservice }:binder { call transfer };

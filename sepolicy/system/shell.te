@@ -1,0 +1,50 @@
+# Added by TechNexion
+
+allow shell { aac_drc_prop adbd_prop ab_update_gki_prop apk_verity_prop }:file { read open map getattr };
+allow shell { apexd_config_prop apexd_payload_metadata_prop apexd_prop ctl_apexd_prop }:file { read open map getattr };
+allow shell { build_config_prop }:file { map getattr };
+allow shell { audio_config_prop }:file { read open map getattr };
+allow shell { bootanim_config_prop bootanim_system_prop boottime_prop boottime_public_prop bpf_progs_loaded_prop ctl_bootanim_prop }:file { read open map getattr };
+allow shell { charger_config_prop charger_prop charger_status_prop }:file { map getattr };
+allow shell { cold_boot_done_prop cpu_variant_prop }:file { read open map getattr };
+allow shell { ctl_adbd_prop ctl_console_prop ctl_default_prop ctl_fuse_prop ctl_mediatranscoding_prop ctl_odsign_prop }:file { read open map getattr };
+allow shell { ctl_interface_restart_prop ctl_interface_start_prop ctl_interface_stop_prop }:file { read open map getattr };
+allow shell { ctl_restart_prop ctl_rildaemon_prop ctl_sigstop_prop ctl_start_prop ctl_stop_prop }:file { read open map getattr };
+allow shell { ctl_mdnsd_prop }:file { read open map getattr };
+
+allow shell { debugfs_restriction_prop }:file { read open map getattr };
+allow shell { device_config_activity_manager_native_boot_prop device_config_boot_count_prop device_config_configuration_prop }:file { read open map getattr };
+allow shell { device_config_connectivity_prop device_config_input_native_boot_prop }:file { read open map getattr };
+allow shell { device_config_virtualization_framework_native_prop device_config_window_manager_native_boot_prop }:file { read open map getattr };
+allow shell { device_config_lmkd_native_prop device_config_media_native_prop device_config_mglru_native_prop device_config_netd_native_prop }:file { read open map getattr };
+allow shell { device_config_profcollect_native_boot_prop device_config_profcollect_native_boot_prop device_config_reset_performed_prop }:file { read open map getattr };
+allow shell { dmesgd_start_prop drm_service_config_prop dumpstate_options_prop }:file { read open map getattr };
+allow shell { exported_overlay_prop fastbootd_protocol_prop ffs_control_prop framework_watchdog_config_prop }:file { read open map getattr };
+allow shell { gesture_prop gsid_prop incremental_prop init_storage_prop }:file { read open map getattr };
+allow shell { hal_dumpstate_config_prop init_svc_debug_prop }:file { map getattr };
+allow shell { keyguard_config_prop keystore_crash_prop keystore_listen_prop llkd_prop lmkd_prop lower_kptr_restrict_prop lowpan_prop }:file { read open map getattr };
+allow shell { mm_events_config_prop }:file { map getattr };
+allow shell { mmc_prop }:file { read open map getattr };
+allow shell { net_464xlat_fromvendor_prop net_connectivity_prop }:file { read open map getattr };
+#allow shell { netd_stable_secret_prop }:file ~{ ioctl read getattr lock map open watch watch_reads };
+allow shell { net_dns_prop }:file { open map getattr };
+allow shell { oem_unlock_prop }:file { map getattr };
+allow shell { overlay_prop }:file { read open map getattr };
+allow shell { persist_vendor_debug_wifi_prop persistent_properties_ready_prop }:file { read open map getattr };
+#allow shell { profcollectd_node_id_prop }:file { getattr };
+allow shell { provisioned_prop }:file { read open map getattr };
+allow shell { qemu_hw_prop qemu_sf_lcd_density_prop }:file { read open map getattr };
+allow shell { radio_cdma_ecm_prop recovery_config_prop remote_prov_prop retaildemo_prop }:file { read open map getattr };
+allow shell { rebootescrow_hal_prop }:file { map getattr };
+allow shell { safemode_prop smart_idle_maint_enabled_prop snapuserd_prop }:file { read open map getattr };
+allow shell { storage_config_prop }:file { map getattr };
+allow shell { surfaceflinger_display_prop suspend_prop }:file { read map getattr };
+allow shell { system_adbd_prop system_lmk_prop system_trace_prop system_user_mode_emulation_prop test_boot_reason_prop }:file { read open map getattr };
+allow shell { system_jvmti_agent_prop }:file { map getattr };
+allow shell { theme_prop time_prop traced_lazy_prop }:file { read open map getattr };
+allow shell { tombstone_config_prop }:file { map getattr };
+allow shell { virtualizationservice_prop }:file { read open map getattr };
+allow shell { vold_post_fs_data_prop }:file { read open map getattr };
+allow shell { wifi_config_prop }:file { map getattr };
+
+allow shell { vehicle_hal_prop wifi_hal_prop zram_config_prop zram_control_prop }:file { read open map getattr };

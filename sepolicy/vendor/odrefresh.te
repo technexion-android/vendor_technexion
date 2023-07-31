@@ -1,0 +1,3 @@
+# Added by TechNexion
+
+#allow odrefresh { vendor_camera_prop vendor_default_prop }:file { read open map getattr };

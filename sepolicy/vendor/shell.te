@@ -1,0 +1,38 @@
+# Added by TechNexion
+
+#allow shell { aac_drc_prop ab_update_gki_prop apk_verity_prop }:file { read open map getattr };
+#allow shell { apexd_config_prop apexd_prop ctl_apexd_prop }:file { read open map getattr };
+#allow shell { build_config_prop }:file { map getattr };
+#allow shell { audio_config_prop }:file { read open map getattr };
+#allow shell { bootanim_config_prop bootanim_system_prop boottime_prop boottime_public_prop bpf_progs_loaded_prop ctl_bootanim_prop }:file { read open map getattr };
+#allow shell { charger_config_prop charger_prop charger_status_prop }:file { map getattr };
+#allow shell { cold_boot_done_prop cpu_variant_prop }:file { read open map getattr };
+#allow shell { ctl_adbd_prop ctl_console_prop ctl_default_prop ctl_fuse_prop }:file { read open map getattr };
+#allow shell { ctl_restart_prop ctl_rildaemon_prop ctl_sigstop_prop ctl_start_prop ctl_stop_prop }:file { read open map getattr };
+
+#allow shell { debugfs_restriction_prop }:file { read open map getattr };
+#allow shell { device_config_activity_manager_native_boot_prop device_config_boot_count_prop }:file { read open map getattr };
+#allow shell { device_config_input_native_boot_prop }:file { read open map getattr };
+#allow shell { device_config_lmkd_native_prop device_config_media_native_prop device_config_mglru_native_prop device_config_netd_native_prop }:file { read open map getattr };
+#allow shell { device_config_profcollect_native_boot_prop device_config_profcollect_native_boot_prop device_config_reset_performed_prop }:file { read open map getattr };
+#allow shell { dmesgd_start_prop drm_service_config_prop dumpstate_options_prop }:file { read open map getattr };
+#allow shell { exported_overlay_prop fastbootd_protocol_prop ffs_control_prop framework_watchdog_config_prop }:file { read open map getattr };
+#allow shell { gesture_prop gsid_prop incremental_prop init_storage_prop }:file { read open map getattr };
+#allow shell { hal_dumpstate_config_prop init_svc_debug_prop }:file { map getattr };
+#allow shell { keyguard_config_prop keystore_crash_prop keystore_listen_prop llkd_prop lmkd_prop lower_kptr_restrict_prop lowpan_prop }:file { read open map getattr };
+#allow shell { mm_events_config_prop }:file { map getattr };
+#allow shell { mmc_prop }:file { read open map getattr };
+#allow shell { net_464xlat_fromvendor_prop net_connectivity_prop }:file { read open map getattr };
+#allow shell { net_dns_prop }:file { open map getattr };
+#allow shell { oem_unlock_prop }:file { map getattr };
+#allow shell { overlay_prop }:file { read open map getattr };
+#allow shell { persist_vendor_debug_wifi_prop persistent_properties_ready_prop }:file { read open map getattr };
+#allow shell { vendor_usb_config_prop virtualizationservice_prop }:file { read open map getattr };
+#allow shell { vendor_camera_prop vendor_logging_prop }:file { map getattr };
+#allow shell { vendor_wc_prop vendor_wifi_version wifi_config_prop }:file { map getattr };
+
+#allow shell { vehicle_hal_prop wifi_hal_prop }:file { read open map getattr };
+
+allow shell { vendor_usb_config_prop }:file { read open map getattr };
+allow shell { vendor_camera_prop vendor_logging_prop vendor_wc_prop vendor_wifi_version }:file { map getattr };
+allow shell { vendor_default_prop vendor_power_hal_prop }:file { map getattr };
