@@ -16,3 +16,5 @@
 
 ## NFC properties
 #persist.nfc.                  u:object_r:nfc_prop:s0
+
+vendor.battery.status.msg		u:object_r:vendor_public_default_prop:s0
