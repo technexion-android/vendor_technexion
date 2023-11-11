@@ -1,6 +1,0 @@
-# Added by TechNexion
-
-permissive system_suspend;
-
-allow system_suspend { sysfs }:dir { read open map getattr };
-allow system_suspend { sysfs }:file { map getattr };

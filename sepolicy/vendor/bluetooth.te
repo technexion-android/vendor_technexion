@@ -1,4 +1,0 @@
-typeattribute bluetooth system_writes_vendor_properties_violators;
-
-#set_prop(bluetooth, vendor_bluetooth_prop)
-#set_prop(bluetooth, vendor_wc_prop)

@@ -1,7 +1,0 @@
-allow system_server tn_init:binder { transfer call };
-allow system_server tn_init:fd { use };
-allow system_server tn_init:fifo_file { write };
-
-get_prop(system_server, usb_notify_prop)
-
-#allow system_server vendor_default_prop:file { read };
