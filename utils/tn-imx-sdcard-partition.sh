@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-# This script fork from imx-sdcard-partition.sh, but flash android partitions into a loop device
+# This script fork from imx-sdcard-partition.sh
 
 help() {
 
@@ -11,7 +11,7 @@ Version: 1.6
 Last change: generate super.img when flash images with dynamic partition feature
 V1.4 change: add support imx8mn chips
 
-Usage: $bn <option> target_image
+Usage: $bn <option> device_node
 
 options:
   -h                displays this help message
@@ -71,6 +71,10 @@ flash_mcu=0
 RED='\033[0;31m'
 STD='\033[0;0m'
 
+if ! (command -v make_f2fs >/dev/null 2>&1 || echo ${PATH} | grep "out/host/linux-x86/bin"); then
+	export PATH="$PATH:$(readlink -f $(dirname $0)/../out)/host/linux-x86/bin"
+fi
+
 image_directory=""
 dtb_feature=""
 uboot_feature=""
@@ -85,7 +89,6 @@ node_device_minor=0
 current_device_major=""
 current_device_minor=0
 minor_difference=0
-current_device_base_name=""
 
 if [[ ! $(id -u) -eq 0 ]]; then
     echo -e "\n${RED}WARNING: You are not superuser, which may cause some problems.${STD}"
@@ -106,7 +109,7 @@ while [ "$moreoptions" = 1 -a $# -gt 0 ]; do
         -u) uboot_feature=-$2; shift;;
         -d) dtb_feature=$2; shift;;
         -D) image_directory=$2; shift;;
-        *)  moreoptions=0; trg_img=$1 ;;
+        *)  moreoptions=0; node=$1 ;;
     esac
     [ "$moreoptions" = 0 ] && [ $# -gt 1 ] \
         && echo -e >&2 "${RED}An unkonwn option \"${node}\" is used or the target flash device is not correctly specified at the end of the command ${STD}" \
@@ -138,8 +141,8 @@ if [ "${force_offset}" != "" ]; then
 fi
 
 # exit if the block device file specified by ${node} doesn't exist
-if [ -z ${trg_img} ]; then
-    _error_exit "The target image name is not set"
+if [ ! -e ${node} ]; then
+    echo "The loop device is not set"
     help
     exit 1
 fi
@@ -164,9 +167,12 @@ if [ ${support_dual_bootloader} -eq 1 ]; then
     fi
 else
     if [ ${card_size} -gt 0 ]; then
-        partition_file="partition-table-${card_size}GB.img";
-    else
-        partition_file="partition-table.img";
+        partition_file="tn-android13_${card_size}GB.gpt"
+        if [[ -f ${partition_file} ]]; then
+            SGDISK_GPT=1
+        else
+            partition_file="partition-table-${card_size}GB.img";
+        fi
     fi
 fi
 
@@ -185,65 +191,35 @@ fi
 
 # dump partitions
 if [ "${cal_only}" -eq "1" ]; then
-    gdisk -l ${node} 2>/dev/null | grep -A 20 "Number  "
+    sgdisk -p ${node} 2>/dev/null | grep -A 20 "Number  "
     exit 0
 fi
 
-function _do_cmd() {
-	echo "CMD: ${1}"
-	eval "${1}"
-	return $?
-}
-
-function _error_exit() {
-	echo -e "${RED}ERROR: ${1}${STD}"
-	exit 1
-}
-
 function get_partition_size
 {
-    start_sector=`gdisk -l ${node} | grep -w $1 | awk '{print $2}'`
-    end_sector=`gdisk -l ${node} | grep -w $1 | awk '{print $3}'`
+    part_info=`sgdisk -p ${node} | grep -w $1`
+    start_sector=`echo ${part_info} | awk '{print $2}'`
+    end_sector=`echo ${part_info} | awk '{print $3}'`
     # 1 sector = 512 bytes. This will change unit from sector to MBytes.
     let "g_sizes=($end_sector - $start_sector + 1) / 2048"
 }
 
-function get_current_device_base_name
-{
-    if [[ ${DEV_MAPPER} = 'y' ]]; then
-		MAPPER_DEV=$(echo "$LOOPDEV" | awk -F/ '{print $3}')
-		PARTITIONS=$(lsblk -x MAJ:MIN --raw --output "MAJ:MIN" --noheadings ${LOOPDEV} | tail -n +2)
-		COUNTER=1
-
-		for i in $PARTITIONS; do
-			MAJ=$(echo $i | cut -d: -f1)
-			MIN=$(echo $i | cut -d: -f2)
-			mknod /dev/mapper/${MAPPER_DEV}p${COUNTER} b $MAJ $MIN
-			COUNTER=$((COUNTER + 1))
-		done
-    else
-        current_device_base_name="${node}p"
-    fi
-}
-
 function format_partition
 {
-    num=`gdisk -l ${node} | grep -w $1 | awk '{print $1}'`
+    num=`sgdisk -p ${node} | grep -w $1 | awk '{print $1}'`
     if [ ${num} -gt 0 ] 2>/dev/null; then
-        get_current_device_base_name
-
-        echo "format_partition: $1:${current_device_base_name}${num} ${2:-ext4}"
+        echo "format_partition: $1:${dev_p}${num} ${2:-ext4}"
         if [ "$2" != "f2fs" ]; then
-            mkfs.ext4 -F ${current_device_base_name}${num} -L$1
+            mkfs.ext4 -F "${dev_p}${num}" -L$1
         else
             # check whether make_f2fs exists
-            command -v make_f2fs >/dev/null 2>&1 || { echo -e >&2 "${RED}Missing make_f2fs, fallback to erase the $1 partition ${STD}" ; erase_partition $1 ; return ; }
+            command -v make_f2fs >/dev/null 2>&1 || { echo -e >&2 "${RED}Missing make_f2fs, fallback to erase the $1 partition ${STD}" ; erase_partition $1; return 1; }
 
             get_partition_size $1
             randome_part=$RANDOM
             # generate a sparse filesystem image with f2fs type and the size of the partition
             make_f2fs -S $(( g_sizes*1024*1024 )) -g android /tmp/TemporaryFile_${randome_part}
-            simg2img /tmp/TemporaryFile_${randome_part} ${current_device_base_name}${num}
+            simg2img /tmp/TemporaryFile_${randome_part} "${dev_p}${num}"
             rm /tmp/TemporaryFile_${randome_part}
         fi
     fi
@@ -251,12 +227,11 @@ function format_partition
 
 function erase_partition
 {
-    num=`gdisk -l ${node} | grep -w $1 | awk '{print $1}'`
+    num=`sgdisk -p ${node} | grep -w $1 | awk '{print $1}'`
     if [ ${num} -gt 0 ] 2>/dev/null; then
-        get_current_device_base_name
         get_partition_size $1
-        echo "erase_partition: $1 : ${current_device_base_name}${num} ${g_sizes}M"
-        dd if=/dev/zero of=${current_device_base_name}${num} bs=1048576 conv=fsync,nocreat count=$g_sizes
+        echo "erase_partition: $1 : ${node}p${num} ${g_sizes}M"
+        dd if=/dev/zero of="${dev_p}${num}" bs=1M conv=fsync count=${g_sizes} status=progress
     fi
 }
 
@@ -264,7 +239,7 @@ function flash_partition
 {
     for num in `gdisk -l ${node} | grep -E -w "$1|$1_a|$1_b" | awk '{print $1}'`
     do
-        if [ $? -eq 0 ]; then
+        if [ $num -gt 0 ]; then
             if [ "$(echo ${1} | grep "bootloader_")" != "" ]; then
                 img_name=${uboot_proper_file}
             elif [ ${support_vendor_boot} -eq 1 ] && [ $(echo ${1} | grep "vendor_boot") != "" ] 2>/dev/null; then
@@ -293,16 +268,15 @@ function flash_partition
                 echo -e >&2 "${RED}File ${img_name} not found. Please check. Exiting${STD}"
                 return 1
             fi
-            get_current_device_base_name
-            echo "flash_partition: ${img_name} ---> ${current_device_base_name}${num}"
+            echo "flash_partition: ${img_name} ---> ${dev_p}${num}"
 
             if [ "$(echo ${1} | grep "vendor_boot")" != "" ]; then
-                dd if=${image_directory}${img_name} of=${current_device_base_name}${num} bs=10M conv=fsync,nocreat
+                dd if=${image_directory}${img_name} of="${dev_p}${num}" bs=10M conv=fsync,nocreat
             elif [ "$(echo ${1} | grep "system")" != "" ] || [ "$(echo ${1} | grep "vendor")" != "" ] || \
                 [ "$(echo ${1} | grep "product")" != "" ] || [ "$(echo ${1} | grep "super")" != "" ]; then
-                simg2img ${image_directory}${img_name} ${current_device_base_name}${num}
+                simg2img ${image_directory}${img_name} "${dev_p}${num}"
             else
-                dd if=${image_directory}${img_name} of=${current_device_base_name}${num} bs=10M conv=fsync,nocreat
+                dd if=${image_directory}${img_name} of="${dev_p}${num}" bs=10M conv=fsync,nocreat
             fi
         fi
     done
@@ -311,18 +285,25 @@ function flash_partition
 function format_android
 {
     echo "formating android images"
-    format_partition metadata f2fs
-    format_partition cache
-    erase_partition presistdata
-    erase_partition fbmisc
-    erase_partition misc
-    format_partition userdata f2fs
+    format_partition metadata f2fs || return 1
+    format_partition cache || return 1
+    erase_partition presistdata || return 1
+    erase_partition fbmisc || return 1
+    erase_partition misc || return 1
+    format_partition userdata f2fs || return 1
 }
 
 function make_partition
 {
     echo "make gpt partition for android: ${partition_file}"
-    dd if=${image_directory}${partition_file} of=${node} bs=1k count=${vaild_gpt_size} conv=fsync
+    if [[ ${SGDISK_GPT} -eq 1 ]]; then
+        sgdisk -l ${image_directory}${partition_file} ${node} || return 1
+    else
+        dd if=${image_directory}${partition_file} of=${node} bs=1k count=${vaild_gpt_size} conv=fsync || return 1
+        # backup the GPT table to last LBA for sd card. execute "gdisk ${node}" with the input characters
+        # redirect standard OUTPUT to /dev/null to reduce some ouput
+        echo -e 'r\ne\nY\nw\nY\nY' | gdisk ${node} 1>/dev/null
+    fi
 }
 
 function flash_android
@@ -338,11 +319,11 @@ function flash_android
     super_partition="super"
     vendor_boot_partition="vendor_boot"${slot}
     init_boot_partition="init_boot"${slot}
-    gdisk -l ${node} 2>/dev/null | grep -q "dtbo" && support_dtbo=1
-    gdisk -l ${node} 2>/dev/null | grep -q "super" && support_dynamic_partition=1
-    gdisk -l ${node} 2>/dev/null | grep -q "vendor_boot" && support_vendor_boot=1
-    gdisk -l ${node} 2>/dev/null | grep -q "init_boot" && support_init_boot=1
-    gdisk -l ${node} 2>/dev/null | grep -q "system_ext" && has_system_ext_partition=1
+    sgdisk -p ${node} 2>/dev/null | grep -q "dtbo" && support_dtbo=1
+    sgdisk -p ${node} 2>/dev/null | grep -q "super" && support_dynamic_partition=1
+    sgdisk -p ${node} 2>/dev/null | grep -q "vendor_boot" && support_vendor_boot=1
+    sgdisk -p ${node} 2>/dev/null | grep -q "init_boot" && support_init_boot=1
+    sgdisk -p ${node} 2>/dev/null | grep -q "system_ext" && has_system_ext_partition=1
 
     if [ ${support_dual_bootloader} -eq 1 ]; then
         bootloader_file=spl-${soc_name}${uboot_feature}.bin
@@ -377,7 +358,7 @@ function flash_android
     flash_partition ${vbmeta_partition} || exit 1
     echo "erase_partition: uboot : ${node}"
     echo "flash_partition: ${bootloader_file} ---> ${node}"
-    first_partition_offset=`gdisk -l ${node} | grep ' 1 ' | awk '{print $2}'`
+    first_partition_offset=`sgdisk -p ${node} | grep ' 1 ' | awk '{print $2}'`
     # the unit of first_partition_offset is sector size which is 512 Byte.
     count_bootloader=`expr ${first_partition_offset} / 2 - ${bootloader_offset}`
     echo "the bootloader partition size: ${count_bootloader}"
@@ -393,65 +374,39 @@ function flash_android
             dd if=${image_directory}${mcu_image} of=${node} bs=1k seek=${mcu_image_offset} conv=fsync
         fi
     fi
+
+    echo -e "\nwipe metadata and userdata"
+    erase_partition metadata
+    erase_partition userdata
 }
 
-echo -e "\nPrepare the image ${trg_img} with ${card_size}MB"
-_do_cmd "dd if=/dev/zero of=${trg_img} bs=${card_size}M count=1024 status=progress" && sync || _error_exit "Create ${trg_img} fail"
+dev_p="${node}p"
 
-echo -e "\nCreate and copy partitions"
-node=$(losetup --find --show --partscan "${trg_img}")
-
-if [ "${not_partition}" -ne "1" ] ; then
+if [ "${not_partition}" -eq "1" ] ; then
+    echo -e "\n-------------> Generate aneroid partitions <-------------"
     # invoke make_partition to write first 17KB in partition table image to sdcard start
     make_partition || exit 1
     # unmount partitions and then force to re-read the partition table of the specified device
     sleep 3
     for i in `cat /proc/mounts | grep "${node}" | awk '{print $2}'`; do umount $i; done
     hdparm -z ${node}
-    # backup the GPT table to last LBA for sd card. execute "gdisk ${node}" with the input characters
-    # redirect standard OUTPUT to /dev/null to reduce some ouput
-    echo -e 'r\ne\nY\nw\nY\nY' |  gdisk ${node} 1>/dev/null
 
-    # use "boot_b" to check whether dual slot is supported
-    gdisk -l ${node} | grep -E -w "boot_b" 2>&1 > /dev/null && support_dualslot=1
-
-    format_android
+    echo "-------------> Generate aneroid partitions successfully <-------------"
+    exit 0
 fi
 
-if [[ ${DEV_MAPPER} = 'y' ]]; then
-	losetup -d ${node}
-	sleep 0.5
-	node=$(losetup --find --show --partscan "${trg_img}")
-	flash_android || true
-	sync
-	sleep 2
-	flash_android
-	sync
-else
-	flash_android || exit 1
-fi
+# use "boot_b" to check whether dual slot is supported
+sgdisk -p ${node} | grep -E -w "boot_b" 2>&1 > /dev/null && support_dualslot=1
+
+format_android || exit 1
+flash_android || exit 1
 
 if [ "${slot}" = "_b" ]; then
     echo -e >&2 "${RED}Caution:${STD}"
     echo -e >&2 "       This script can't generate metadata to directly boot from b slot, fastboot command may need to be used to boot from b slot."
 fi
 
-losetup -d "${node}"
-[[ ${DEV_MAPPER} = 'y' ]] && rm -rf /dev/mapper/${MAPPER_DEV}p*
-
-echo -e "\nGenerate image xz and bmap file, waiting for complated."
-_do_cmd "bmaptool create ${trg_img} -o ${trg_img}.bmap"
-_do_cmd "xz -T0 -f -9 ${trg_img}" && sync
-
-echo -e "\n>>>>>>>>>>>>>> Flashing successfully completed <<<<<<<<<<<<<<"
+echo
+echo ">>>>>>>>>>>>>> Flashing successfully completed <<<<<<<<<<<<<<"
 
 exit 0
-
-# For MFGTool Notes:
-# MFGTool use mksdcard-android.tar store this script
-# if you want change it.
-# do following:
-#   tar xf mksdcard-android.sh.tar
-#   vi mksdcard-android.sh
-#   [ edit want you want to change ]
-#   rm mksdcard-android.sh.tar; tar cf mksdcard-android.sh.tar mksdcard-android.sh
