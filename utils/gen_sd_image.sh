@@ -69,7 +69,7 @@ case ${_card_size} in
 		;;
 	14|15|16)
 		_dd_cnt=1024
-		_dd_bs="14900K"
+		_dd_bs="14M"
 		_partition_table=14
 		;;
 	28|29|32)
@@ -97,11 +97,8 @@ _loopdev=$(sudo losetup --find --show --partscan "${_img_}")
 echo -e "--->> Loopback device: ${_loopdev}"
 echo -e "--->> Generate partitions for ${_img_}"
 sudo ${_gen_img_sh} -np -f "${_platform}" -c ${_partition_table} "${_loopdev}" && sync || error_exit "Create partition fail"
-sudo losetup -d "${_loopdev}" && sync
-unset _loopdev
 
 echo -e "--->> Clone android image to partition"
-_loopdev=$(sudo losetup --find --show --partscan "${_img_}")
 (ls "${_loopdev}p1" > /dev/null) || DEV_MAPPER=1
 if [[ ${DEV_MAPPER} -eq 1 ]]; then
 	create_device_mapper ${_loopdev} _loopdev || error_exit "Create device mapper fail"

@@ -170,6 +170,9 @@ if [ ${support_dual_bootloader} -eq 1 ]; then
 else
     if [ ${card_size} -gt 0 ]; then
         partition_file="partition-table-${card_size}GB.img";
+        if [ ! -e ${partition_file} ]; then
+            partition_file="partition-table.img";
+        fi
     else
         partition_file="partition-table.img";
     fi
@@ -204,34 +207,7 @@ function get_partition_size
 
 function get_current_device_base_name
 {
-    if [ -z ${current_device_base_name} ]; then
-        #get the minor number of the node
-        node_device_major=`ls -l ${node} | awk '{print $5}'`
-        node_device_minor=`ls -l ${node} | awk '{print $6}'`
-        all_device_info=`ls -l ${node}*`
-
-        # use '\n' as delimiter
-        OLDIFS=$IFS
-        IFS=$'\n'
-        # find the first partition, and retrieve the base name
-        for current_device_info in $all_device_info ; do
-            current_device_major=`echo ${current_device_info} | awk '{print $5}'`
-            current_device_minor=`echo ${current_device_info} | awk '{print $6}'`
-            minor_difference=$[$current_device_minor - $node_device_minor]
-            if [ ${node_device_major} = ${current_device_major} ]; then
-                if [ 1 -eq $minor_difference ]; then
-                    current_device_base_name=`echo ${current_device_info} | awk '{print $10}'`
-                    current_device_base_name=${current_device_base_name%1}
-                    IFS=$OLDIFS
-                    return 0
-                fi
-            fi
-        done
-        # restore the delimeter
-        IFS=$OLDIFS
-        echo -e >&2 "${RED}Failed to find the first partition on ${node}.${STD}"
-        exit 1
-    fi
+    current_device_base_name=${node}p
 }
 
 function format_partition
