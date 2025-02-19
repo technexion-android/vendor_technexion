@@ -27,6 +27,7 @@ options:
                            │ imx8mm/imx8mq              │      33k      │
                            ├────────────────────────────┼───────────────┤
                            │imx8qm/imx8qxp/imx8mn/imx8mp│      32k      │
+                           │imx95                       │               │
                            └────────────────────────────┴───────────────┘
   -a                only flash image to slot_a
   -b                only flash image to slot_b
@@ -89,6 +90,7 @@ node_device_minor=0
 current_device_major=""
 current_device_minor=0
 minor_difference=0
+current_device_base_name=""
 
 if [[ ! $(id -u) -eq 0 ]]; then
     echo -e "\n${RED}WARNING: You are not superuser, which may cause some problems.${STD}"
@@ -127,7 +129,7 @@ if [ ${card_size} -ne 0 ] && [ ${card_size} -ne 7 ] && [ ${card_size} -ne 14 ] &
 fi
 
 # imx8qxp RevB0 chips, imx8qm RevB0 chips, imx8mp and imx8mn chips, bootloader offset is 32KB on SD card
-if [ "${soc_name}" = "imx8qxp" -o "${soc_name}" = "imx8qm" -o "${soc_name}" = "imx8mn" -o "${soc_name}" = "imx8mp" ]; then
+if [ "${soc_name}" = "imx8qxp" -o "${soc_name}" = "imx8qm" -o "${soc_name}" = "imx8mn" -o "${soc_name}" = "imx8mp" -o "${soc_name}" = "imx95" ]; then
     bootloader_offset=32
 fi
 
@@ -167,12 +169,9 @@ if [ ${support_dual_bootloader} -eq 1 ]; then
     fi
 else
     if [ ${card_size} -gt 0 ]; then
-        partition_file="tn-android13_${card_size}GB.gpt"
-        if [[ -f ${partition_file} ]]; then
-            SGDISK_GPT=1
-        else
-            partition_file="partition-table-${card_size}GB.img";
-        fi
+        partition_file="partition-table-${card_size}GB.img";
+    else
+        partition_file="partition-table.img";
     fi
 fi
 
@@ -191,35 +190,68 @@ fi
 
 # dump partitions
 if [ "${cal_only}" -eq "1" ]; then
-    sgdisk -p ${node} 2>/dev/null | grep -A 20 "Number  "
+    gdisk -l ${node} 2>/dev/null | grep -A 20 "Number  "
     exit 0
 fi
 
 function get_partition_size
 {
-    part_info=`sgdisk -p ${node} | grep -w $1`
-    start_sector=`echo ${part_info} | awk '{print $2}'`
-    end_sector=`echo ${part_info} | awk '{print $3}'`
+    start_sector=`gdisk -l ${node} | grep -w $1 | awk '{print $2}'`
+    end_sector=`gdisk -l ${node} | grep -w $1 | awk '{print $3}'`
     # 1 sector = 512 bytes. This will change unit from sector to MBytes.
     let "g_sizes=($end_sector - $start_sector + 1) / 2048"
 }
 
+function get_current_device_base_name
+{
+    if [ -z ${current_device_base_name} ]; then
+        #get the minor number of the node
+        node_device_major=`ls -l ${node} | awk '{print $5}'`
+        node_device_minor=`ls -l ${node} | awk '{print $6}'`
+        all_device_info=`ls -l ${node}*`
+
+        # use '\n' as delimiter
+        OLDIFS=$IFS
+        IFS=$'\n'
+        # find the first partition, and retrieve the base name
+        for current_device_info in $all_device_info ; do
+            current_device_major=`echo ${current_device_info} | awk '{print $5}'`
+            current_device_minor=`echo ${current_device_info} | awk '{print $6}'`
+            minor_difference=$[$current_device_minor - $node_device_minor]
+            if [ ${node_device_major} = ${current_device_major} ]; then
+                if [ 1 -eq $minor_difference ]; then
+                    current_device_base_name=`echo ${current_device_info} | awk '{print $10}'`
+                    current_device_base_name=${current_device_base_name%1}
+                    IFS=$OLDIFS
+                    return 0
+                fi
+            fi
+        done
+        # restore the delimeter
+        IFS=$OLDIFS
+        echo -e >&2 "${RED}Failed to find the first partition on ${node}.${STD}"
+        exit 1
+    fi
+}
+
 function format_partition
 {
-    num=`sgdisk -p ${node} | grep -w $1 | awk '{print $1}'`
+    num=`gdisk -l ${node} | grep -w $1 | awk '{print $1}'`
     if [ ${num} -gt 0 ] 2>/dev/null; then
-        echo "format_partition: $1:${dev_p}${num} ${2:-ext4}"
+        get_current_device_base_name
+
+        echo "format_partition: $1:${current_device_base_name}${num} ${2:-ext4}"
         if [ "$2" != "f2fs" ]; then
-            mkfs.ext4 -F "${dev_p}${num}" -L$1
+            mkfs.ext4 -F ${current_device_base_name}${num} -L$1
         else
             # check whether make_f2fs exists
-            command -v make_f2fs >/dev/null 2>&1 || { echo -e >&2 "${RED}Missing make_f2fs, fallback to erase the $1 partition ${STD}" ; erase_partition $1; return 1; }
+            command -v make_f2fs >/dev/null 2>&1 || { echo -e >&2 "${RED}Missing make_f2fs, fallback to erase the $1 partition ${STD}" ; erase_partition $1 ; return ; }
 
             get_partition_size $1
             randome_part=$RANDOM
             # generate a sparse filesystem image with f2fs type and the size of the partition
             make_f2fs -S $(( g_sizes*1024*1024 )) -g android /tmp/TemporaryFile_${randome_part}
-            simg2img /tmp/TemporaryFile_${randome_part} "${dev_p}${num}"
+            simg2img /tmp/TemporaryFile_${randome_part} ${current_device_base_name}${num}
             rm /tmp/TemporaryFile_${randome_part}
         fi
     fi
@@ -227,11 +259,12 @@ function format_partition
 
 function erase_partition
 {
-    num=`sgdisk -p ${node} | grep -w $1 | awk '{print $1}'`
+    num=`gdisk -l ${node} | grep -w $1 | awk '{print $1}'`
     if [ ${num} -gt 0 ] 2>/dev/null; then
+        get_current_device_base_name
         get_partition_size $1
-        echo "erase_partition: $1 : ${node}p${num} ${g_sizes}M"
-        dd if=/dev/zero of="${dev_p}${num}" bs=1M conv=fsync count=${g_sizes} status=progress
+        echo "erase_partition: $1 : ${current_device_base_name}${num} ${g_sizes}M"
+        dd if=/dev/zero of=${current_device_base_name}${num} bs=1048576 conv=fsync,nocreat count=$g_sizes
     fi
 }
 
@@ -239,7 +272,7 @@ function flash_partition
 {
     for num in `gdisk -l ${node} | grep -E -w "$1|$1_a|$1_b" | awk '{print $1}'`
     do
-        if [ $num -gt 0 ]; then
+        if [ $? -eq 0 ]; then
             if [ "$(echo ${1} | grep "bootloader_")" != "" ]; then
                 img_name=${uboot_proper_file}
             elif [ ${support_vendor_boot} -eq 1 ] && [ $(echo ${1} | grep "vendor_boot") != "" ] 2>/dev/null; then
@@ -268,15 +301,16 @@ function flash_partition
                 echo -e >&2 "${RED}File ${img_name} not found. Please check. Exiting${STD}"
                 return 1
             fi
-            echo "flash_partition: ${img_name} ---> ${dev_p}${num}"
+            get_current_device_base_name
+            echo "flash_partition: ${img_name} ---> ${current_device_base_name}${num}"
 
             if [ "$(echo ${1} | grep "vendor_boot")" != "" ]; then
-                dd if=${image_directory}${img_name} of="${dev_p}${num}" bs=10M conv=fsync,nocreat
+                dd if=${image_directory}${img_name} of=${current_device_base_name}${num} bs=10M conv=fsync,nocreat
             elif [ "$(echo ${1} | grep "system")" != "" ] || [ "$(echo ${1} | grep "vendor")" != "" ] || \
                 [ "$(echo ${1} | grep "product")" != "" ] || [ "$(echo ${1} | grep "super")" != "" ]; then
-                simg2img ${image_directory}${img_name} "${dev_p}${num}"
+                simg2img ${image_directory}${img_name} ${current_device_base_name}${num}
             else
-                dd if=${image_directory}${img_name} of="${dev_p}${num}" bs=10M conv=fsync,nocreat
+                dd if=${image_directory}${img_name} of=${current_device_base_name}${num} bs=10M conv=fsync,nocreat
             fi
         fi
     done
@@ -296,14 +330,7 @@ function format_android
 function make_partition
 {
     echo "make gpt partition for android: ${partition_file}"
-    if [[ ${SGDISK_GPT} -eq 1 ]]; then
-        sgdisk -l ${image_directory}${partition_file} ${node} || return 1
-    else
-        dd if=${image_directory}${partition_file} of=${node} bs=1k count=${vaild_gpt_size} conv=fsync || return 1
-        # backup the GPT table to last LBA for sd card. execute "gdisk ${node}" with the input characters
-        # redirect standard OUTPUT to /dev/null to reduce some ouput
-        echo -e 'r\ne\nY\nw\nY\nY' | gdisk ${node} 1>/dev/null
-    fi
+    dd if=${image_directory}${partition_file} of=${node} bs=1k count=${vaild_gpt_size} conv=fsync || return 1
 }
 
 function flash_android
@@ -316,49 +343,74 @@ function flash_android
     product_partition="product"${slot}
     vbmeta_partition="vbmeta"${slot}
     dtbo_partition="dtbo"${slot}
-    super_partition="super"
     vendor_boot_partition="vendor_boot"${slot}
     init_boot_partition="init_boot"${slot}
-    sgdisk -p ${node} 2>/dev/null | grep -q "dtbo" && support_dtbo=1
-    sgdisk -p ${node} 2>/dev/null | grep -q "super" && support_dynamic_partition=1
-    sgdisk -p ${node} 2>/dev/null | grep -q "vendor_boot" && support_vendor_boot=1
-    sgdisk -p ${node} 2>/dev/null | grep -q "init_boot" && support_init_boot=1
-    sgdisk -p ${node} 2>/dev/null | grep -q "system_ext" && has_system_ext_partition=1
+    gdisk -l ${node} 2>/dev/null | grep -q "dtbo" && support_dtbo=1
+    gdisk -l ${node} 2>/dev/null | grep -q "super" && support_dynamic_partition=1
+    gdisk -l ${node} 2>/dev/null | grep -q "vendor_boot" && support_vendor_boot=1
+    gdisk -l ${node} 2>/dev/null | grep -q "init_boot" && support_init_boot=1
+    gdisk -l ${node} 2>/dev/null | grep -q "system_ext" && has_system_ext_partition=1
+
+    super_partition="super"
 
     if [ ${support_dual_bootloader} -eq 1 ]; then
         bootloader_file=spl-${soc_name}${uboot_feature}.bin
         uboot_proper_file=bootloader-${soc_name}${uboot_feature}.img
-        bootloader_partition="bootloader"${slot}
-        flash_partition ${bootloader_partition} || exit 1
     else
         bootloader_file=u-boot-${soc_name}${uboot_feature}.imx
     fi
 
-    if [ "${support_dtbo}" -eq "1" ] ; then
-        flash_partition ${dtbo_partition} || exit 1
+    if [ "${support_dualslot}" -eq "1" ]; then
+        for slot_iter in ${slot:-_a _b}
+        do
+            boot_partition="boot"${slot}
+            recovery_partition="recovery"${slot}
+            system_partition="system"${slot}
+            system_ext_partition="system_ext"${slot}
+            vendor_partition="vendor"${slot}
+            product_partition="product"${slot}
+            vbmeta_partition="vbmeta"${slot}
+            dtbo_partition="dtbo"${slot}
+            vendor_boot_partition="vendor_boot"${slot}
+            init_boot_partition="init_boot"${slot}
+
+            if [ ${support_dual_bootloader} -eq 1 ]; then
+                bootloader_partition="bootloader"${slot_iter}
+                flash_partition ${bootloader_partition} || exit 1
+            fi
+
+            flash_partition ${boot_partition}  || exit 1
+            flash_partition ${recovery_partition}  || exit 1
+
+            if [ ${support_dynamic_partition} -eq 0 ]; then
+                flash_partition ${system_partition} || exit 1
+                if [ ${has_system_ext_partition} -eq 1 ]; then
+                    flash_partition ${system_ext_partition} || exit 1
+                fi
+                flash_partition ${vendor_partition} || exit 1
+                flash_partition ${product_partition} || exit 1
+            fi
+
+            flash_partition ${vbmeta_partition} || exit 1
+
+            if [ "${support_dtbo}" -eq "1" ] ; then
+                flash_partition ${dtbo_partition} || exit 1
+            fi
+            if [ "${support_vendor_boot}" -eq "1" ] ; then
+                flash_partition ${vendor_boot_partition} || exit 1
+            fi
+            if [ "${support_init_boot}" -eq "1" ] ; then
+                flash_partition ${init_boot_partition} || exit 1
+            fi
+        done
     fi
-    if [ "${support_vendor_boot}" -eq "1" ] ; then
-        flash_partition ${vendor_boot_partition} || exit 1
-    fi
-    if [ "${support_init_boot}" -eq "1" ] ; then
-        flash_partition ${init_boot_partition} || exit 1
-    fi
-    flash_partition ${boot_partition}  || exit 1
-    flash_partition ${recovery_partition}  || exit 1
-    if [ ${support_dynamic_partition} -eq 0 ]; then
-        flash_partition ${system_partition} || exit 1
-        if [ ${has_system_ext_partition} -eq 1 ]; then
-            flash_partition ${system_ext_partition} || exit 1
-        fi
-        flash_partition ${vendor_partition} || exit 1
-        flash_partition ${product_partition} || exit 1
-    else
+
+    if [ ${support_dynamic_partition} -eq 1 ]; then
         flash_partition ${super_partition} || exit 1
     fi
-    flash_partition ${vbmeta_partition} || exit 1
     echo "erase_partition: uboot : ${node}"
     echo "flash_partition: ${bootloader_file} ---> ${node}"
-    first_partition_offset=`sgdisk -p ${node} | grep ' 1 ' | awk '{print $2}'`
+    first_partition_offset=`gdisk -l ${node} | grep ' 1 ' | awk '{print $2}'`
     # the unit of first_partition_offset is sector size which is 512 Byte.
     count_bootloader=`expr ${first_partition_offset} / 2 - ${bootloader_offset}`
     echo "the bootloader partition size: ${count_bootloader}"
@@ -380,8 +432,6 @@ function flash_android
     erase_partition userdata
 }
 
-dev_p="${node}p"
-
 if [ "${not_partition}" -eq "1" ] ; then
     echo -e "\n-------------> Generate aneroid partitions <-------------"
     # invoke make_partition to write first 17KB in partition table image to sdcard start
@@ -390,13 +440,16 @@ if [ "${not_partition}" -eq "1" ] ; then
     sleep 3
     for i in `cat /proc/mounts | grep "${node}" | awk '{print $2}'`; do umount $i; done
     hdparm -z ${node}
+    # backup the GPT table to last LBA for sd card. execute "gdisk ${node}" with the input characters
+    # redirect standard OUTPUT to /dev/null to reduce some ouput
+    echo -e 'r\ne\nY\nw\nY\nY' |  gdisk ${node} 1>/dev/null
 
     echo "-------------> Generate aneroid partitions successfully <-------------"
     exit 0
 fi
 
 # use "boot_b" to check whether dual slot is supported
-sgdisk -p ${node} | grep -E -w "boot_b" 2>&1 > /dev/null && support_dualslot=1
+gdisk -l ${node} | grep -E -w "boot_b" 2>&1 > /dev/null && support_dualslot=1
 
 format_android || exit 1
 flash_android || exit 1
@@ -410,3 +463,12 @@ echo
 echo ">>>>>>>>>>>>>> Flashing successfully completed <<<<<<<<<<<<<<"
 
 exit 0
+
+# For MFGTool Notes:
+# MFGTool use mksdcard-android.tar store this script
+# if you want change it.
+# do following:
+#   tar xf mksdcard-android.sh.tar
+#   vi mksdcard-android.sh 
+#   [ edit want you want to change ]
+#   rm mksdcard-android.sh.tar; tar cf mksdcard-android.sh.tar mksdcard-android.sh
