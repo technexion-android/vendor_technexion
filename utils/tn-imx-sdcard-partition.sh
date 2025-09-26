@@ -403,7 +403,7 @@ function flash_android
 }
 
 if [ "${not_partition}" -eq "1" ] ; then
-    echo -e "\n-------------> Generate aneroid partitions <-------------"
+    echo -e "\n-------------> Generate android partitions <-------------"
     # invoke make_partition to write first 17KB in partition table image to sdcard start
     make_partition || exit 1
     # unmount partitions and then force to re-read the partition table of the specified device
@@ -414,7 +414,7 @@ if [ "${not_partition}" -eq "1" ] ; then
     # redirect standard OUTPUT to /dev/null to reduce some ouput
     echo -e 'r\ne\nY\nw\nY\nY' |  gdisk ${node} 1>/dev/null
 
-    echo "-------------> Generate aneroid partitions successfully <-------------"
+    echo "-------------> Generate android partitions successfully <-------------"
     exit 0
 fi
 
