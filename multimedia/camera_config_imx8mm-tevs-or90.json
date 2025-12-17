@@ -1,0 +1,36 @@
+{
+  "__readme": [
+    "Basic Camera HAL v3 configuration."
+  ],
+
+  "hal_version": "3",
+  "cam_blit_copy": "GPU_2D",
+  "cam_blit_csc": "GPU_2D",
+
+  "camera_metadata": [
+    {
+      "camera_type": "back",
+      "camera_name": "tevs",
+      "bus_info": "platform:32e20000.csi1_bridge",
+      "v4l2_format" : "uyvy",
+      "orientation": "90",
+      "buffer_type": "mmap",
+      "ActiveArrayWidth": "3840",
+      "ActiveArrayHeight": "2160",
+      "PixelArrayWidth": "3840",
+      "PixelArrayHeight": "2160",
+      "PhysicalWidth": "3.84",
+      "PhysicalHeight": "2.4",
+      "FocalLength": "3.29",
+      "MaxJpegSize": "12582912",
+      "MinFrameDuration": "33333333",
+      "MaxFrameDuration": "300000000",
+      "MinFrameDurationBlob5M": "1500000000",
+      "OmitFrame": [
+        {
+            "omit_num": "6"
+        }
+    ]
+    }
+  ]
+}
