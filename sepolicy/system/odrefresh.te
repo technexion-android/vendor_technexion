@@ -25,7 +25,7 @@ allow odrefresh { hal_dumpstate_config_prop }:file { map getattr };
 allow odrefresh { heapprofd_enabled_prop hwservicemanager_prop hypervisor_prop }:file { read open map getattr };
 allow odrefresh { incremental_prop init_perf_lsm_hooks_prop init_storage_prop }:file { read open map getattr };
 allow odrefresh { init_svc_debug_prop }:file { map getattr };
-allow odrefresh { keyguard_config_prop keystore_crash_prop keystore_listen_prop }:file { read open map getattr };
+allow odrefresh { keyguard_config_prop keystore_diagnostics_prop keystore_listen_prop }:file { read open map getattr };
 allow odrefresh { llkd_prop lmkd_prop logpersistd_logging_prop lower_kptr_restrict_prop lowpan_prop lpdumpd_prop }:file { read open map getattr };
 #allow odrefresh { last_boot_reason_prop }:file ~{ ioctl read getattr lock map open watch watch_reads };
 allow odrefresh { media_config_prop media_variant_prop mmc_prop mock_ota_prop }:file { read open map getattr };

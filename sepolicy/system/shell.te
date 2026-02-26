@@ -22,7 +22,7 @@ allow shell { dmesgd_start_prop drm_service_config_prop dumpstate_options_prop }
 allow shell { exported_overlay_prop fastbootd_protocol_prop ffs_control_prop framework_watchdog_config_prop }:file { read open map getattr };
 allow shell { gesture_prop gsid_prop incremental_prop init_storage_prop }:file { read open map getattr };
 allow shell { hal_dumpstate_config_prop init_svc_debug_prop }:file { map getattr };
-allow shell { keyguard_config_prop keystore_crash_prop keystore_listen_prop llkd_prop lmkd_prop lower_kptr_restrict_prop lowpan_prop }:file { read open map getattr };
+allow shell { keyguard_config_prop keystore_diagnostics_prop keystore_listen_prop llkd_prop lmkd_prop lower_kptr_restrict_prop lowpan_prop }:file { read open map getattr };
 allow shell { mm_events_config_prop }:file { map getattr };
 allow shell { mmc_prop }:file { read open map getattr };
 allow shell { net_464xlat_fromvendor_prop net_connectivity_prop }:file { read open map getattr };
